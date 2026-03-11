@@ -1,201 +1,119 @@
-# Property API 🔌
+# Property API
 
-**Production REST API for real estate property valuation and market intelligence.**
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-009688?logo=fastapi&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
-Serve property valuations, investment scoring, and market analysis to consumer platforms, iBuyers, and institutional investors. Built on FastAPI with PostgreSQL backend for sub-100ms response times at scale.
+REST API for real estate property valuation and market intelligence. Built with FastAPI, backed by PostgreSQL, and designed to serve the 12-factor scoring engine from [property-market-analyzer](https://github.com/wrnreed-analytics/property-market-analyzer) over HTTP.
 
 ## Features
 
-- **Real-Time Property Valuation** — Score properties in <50ms
-- **Batch Scoring** — Process 1,000+ properties per request for bulk operations
-- **Market Intelligence Endpoints** — Trends, inventory, appreciation forecasts
-- **Consumer Data** — Safe API for consumer platforms (no sensitive data leakage)
-- **Scalable Architecture** — Designed for millions of requests/day
+- **Property Scoring Endpoint** — Score individual properties against the 12-factor valuation model
+- **Batch Operations** — Submit multiple properties in a single request
+- **Market Intelligence** — Trends, inventory, and appreciation data by market
+- **Health Checks** — Production-ready liveness and readiness probes
+- **CORS Support** — Configured for cross-origin requests from the dashboard frontend
+- **Docker Deployment** — Dockerfile included for containerized environments
 
 ## API Endpoints
 
-### Property Valuation
-
-```bash
-# Score a single property
-GET /api/v1/properties/{property_id}/score
-Response: {
-  "id": "uuid",
-  "address": "123 Main St, Portland OR",
-  "score": 82.4,
-  "estimated_value": 485000,
-  "cap_rate": 4.2,
-  "price_vs_comps": 85.0,
-  "price_trend": 78.0,
-  ...all 12 component scores...
-}
-
-# Batch score multiple properties
-POST /api/v1/properties/batch-score
-Body: {"property_ids": ["prop_001", "prop_002", ...]}
-Response: [{"id": "prop_001", "score": 82.4, ...}, ...]
-
-# Search properties by criteria
-GET /api/v1/properties/search?market=Portland,OR&min_score=75&min_price=300000&max_price=600000
-Response: {"total": 234, "results": [...], "next_cursor": "..."}
+```
+GET  /health                              # Health check
+GET  /api/v1/properties/{id}/score        # Score a single property
+POST /api/v1/properties/batch-score       # Score multiple properties
+GET  /api/v1/properties/search            # Search with filters (market, price, score)
+GET  /api/v1/markets/{market}/trends      # Market trend data
 ```
 
-### Market Intelligence
+### Example: Score a Property
 
 ```bash
-# Get market trends
-GET /api/v1/markets/Portland,OR/trends
-Response: {
-  "market": "Portland, OR",
-  "median_price": 485000,
-  "price_trend_90day": 2.3,
-  "inventory_months": 3.2,
-  "new_listings_today": 45,
-  "appreciation_yoy": 4.1,
-  ...
-}
-
-# Forecast appreciation
-GET /api/v1/markets/Portland,OR/forecast?months=12
-Response: {
-  "current_median": 485000,
-  "forecast_12mo": 504000,
-  "confidence_interval": [495000, 513000],
-  "factors": {...}
-}
+curl http://localhost:8000/api/v1/properties/prop_00123/score
 ```
 
-### Consumer Endpoints (Safe)
-
-```bash
-# "Is this a good deal?" for consumers
-POST /api/v1/consumer/deal-check
-Body: {
-  "address": "123 Main St, Portland OR 97201",
-  "asking_price": 475000
-}
-Response: {
-  "is_good_deal": true,
-  "reasons": ["Below market by 2%", "Strong neighborhood trend", ...],
-  "estimated_value": 485000,
-  "days_on_market_typical": 24
+```json
+{
+  "id": "prop_00123",
+  "address": "742 Evergreen Terrace, Seattle WA",
+  "valuation_score": 82.4,
+  "price_vs_comps_score": 88.0,
+  "cap_rate_score": 76.0,
+  "price_trend_score": 85.0,
+  "estimated_value": 502000,
+  "cap_rate": 4.2
 }
 ```
 
 ## Quick Start
 
-```python
-from fastapi import FastAPI
-from property_api.valuation import ValuationService
-from property_api.db import PropertyDB
-
-app = FastAPI(title="Property API")
-valuations = ValuationService()
-db = PropertyDB("postgresql://...")
-
-@app.get("/api/v1/properties/{property_id}/score")
-async def score_property(property_id: str):
-    prop = await db.get_property(property_id)
-    score = valuations.score(prop)
-    return score.to_dict()
-
-@app.post("/api/v1/properties/batch-score")
-async def batch_score(request: BatchScoreRequest):
-    results = []
-    for prop_id in request.property_ids:
-        prop = await db.get_property(prop_id)
-        results.append(valuations.score(prop).to_dict())
-    return results
+```bash
+git clone https://github.com/wrnreed-analytics/property-api.git
+cd property-api
+pip install -r requirements.txt
+uvicorn property_api.main:app --reload
 ```
 
-## Architecture
+The API is available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
+
+### Docker
+
+```bash
+docker build -t property-api .
+docker run -p 8000:8000 property-api
+```
+
+## Project Structure
 
 ```
 property-api/
-├── main.py                 # FastAPI app entry point
-├── routers/
-│   ├── properties.py      # Property endpoints
-│   ├── markets.py         # Market intelligence
-│   ├── consumer.py        # Consumer-safe endpoints
-│   └── health.py          # Health checks
-├── services/
-│   ├── valuation.py       # Scoring logic
-│   ├── market.py          # Market analysis
-│   └── forecast.py        # Trend forecasting
-├── db/
-│   ├── models.py          # SQLAlchemy models
-│   ├── connection.py      # PostgreSQL pool
-│   └── queries.py         # Optimized queries
-├── schemas/
-│   └── property.py        # Pydantic schemas
-└── tests/
-    ├── test_endpoints.py
-    ├── test_valuation.py
-    └── test_load.py       # Load testing
+├── property_api/
+│   ├── __init__.py
+│   ├── main.py              # FastAPI app, middleware, startup
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   └── properties.py    # Property scoring and search routes
+│   └── services/
+│       └── __init__.py       # Business logic layer
+├── Dockerfile
+├── requirements.txt
+├── setup.py
+└── LICENSE
 ```
 
-## Performance
+## Configuration
 
-- **Latency (50th percentile):** 45ms per single property score
-- **Latency (95th percentile):** 120ms per score
-- **Throughput:** 22,000 scores/second on single machine
-- **Database:** Indexed queries <5ms, sub-100ms total response time
-- **Concurrent Connections:** 10,000+ handled by connection pool
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | — | PostgreSQL connection string |
+| `REDIS_URL` | — | Redis URL for caching (optional) |
+| `CORS_ORIGINS` | `*` | Allowed origins for CORS |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
 
-## Deployment
+## Tech Stack
 
-Docker-ready:
+- **FastAPI** — async Python web framework
+- **Uvicorn** — ASGI server
+- **SQLAlchemy 2.0** — ORM and query builder
+- **PostgreSQL** — primary data store
+- **Redis** — optional response caching
+- **Pydantic** — request/response validation
+- **Locust** — load testing
 
-```bash
-docker build -t property-api:latest .
-docker run -p 8000:8000 \
-  -e DATABASE_URL=postgresql://... \
-  -e REDIS_URL=redis://... \
-  property-api:latest
-```
+## Related Repos
 
-Kubernetes ready with health checks and scaling policies.
-
-## Authentication & Rate Limiting
-
-```python
-# API Key authentication
-# Rate limiting: 10,000 requests/minute per key
-# Batch operations: 1,000 properties per request max
-# Consumer endpoints: public (safe filtering applied)
-```
-
-## Testing
-
-```bash
-pytest tests/
-pytest --benchmark tests/test_load.py  # Load testing
-```
-
-## Security
-
-- No PII in responses (addresses only for properties, no agent/broker data)
-- SQL injection protection via SQLAlchemy ORM
-- Rate limiting to prevent abuse
-- CORS configured for known hosts
-- Request validation with Pydantic
-
-## Dependencies
-
-```
-fastapi>=0.95.0
-uvicorn>=0.21.0
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
-redis>=4.5.0
-pydantic>=1.10.0
-```
+| Repo | Description |
+|------|-------------|
+| [property-market-analyzer](https://github.com/wrnreed-analytics/property-market-analyzer) | Core 12-factor scoring engine (used as a library) |
+| [property-dashboard](https://github.com/wrnreed-analytics/property-dashboard) | Vue 3 frontend that consumes this API |
+| [property-ml-models](https://github.com/wrnreed-analytics/property-ml-models) | ML models integrated for price prediction |
+| [property-valuation-dataset](https://github.com/wrnreed-analytics/property-valuation-dataset) | Sample dataset for testing |
 
 ## License
 
-MIT — Use for commercial API hosting, SaaS, or internal platforms.
+MIT
 
 ---
 
-**Built by Wren Reed** | Real Estate Infrastructure Engineer  
-For partnerships or licensing: wrnreed@gmail.com
+**Wren Reed** — Data Analyst | Real Estate Intelligence | Python & SQL
+[wren.reed.analytics@proton.me](mailto:wren.reed.analytics@proton.me) | [LinkedIn](https://linkedin.com/in/wrenreedanalytics)
